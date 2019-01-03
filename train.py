@@ -48,15 +48,15 @@ class Net(nn.Module):
     def __init__(self):
         super(Net, self).__init__()
         self.conv1 = nn.Conv2d(3,512,(1,1))
-        self.conv2 = nn.Conv2d(512,512,(3,1))
-        self.conv3 = nn.Conv2d(512,512,(3,1))
+        self.conv2 = nn.Conv2d(512,512,(3,1),padding=(1,0))
+        self.conv3 = nn.Conv2d(512,512,(3,1),padding=(1,0))
         self.conv4 = nn.Conv2d(512,1024,(3,1))
         self.conv5 = nn.Conv2d(1024,1024,(3,1))
         self.conv6 = nn.Conv2d(1024,1024,(3,1))
         self.conv7 = nn.Conv2d(1024,2048,(3,1))
         self.conv8 = nn.Conv2d(2048,2048,(3,1))
         self.conv11 = nn.Conv2d(2048,2048,(4,1))
-        self.conv9 = nn.Conv2d(2048,2048,(1,1))
+        self.conv9 = nn.Conv2d(2048,2048,(3,1))
         self.conv10 = nn.Conv2d(2048,1,(1,1))
         self.activation = F.leaky_relu
         self.pool = nn.AvgPool2d((3,1))
@@ -74,10 +74,11 @@ class Net(nn.Module):
 
     def forward(self, x):
      #   x = self.dp1(x)
+        
         x = self.activation(self.norm_512(self.conv1(x)))
-#         x += residual.d
+        res = x
         x = self.activation(self.norm_512(self.conv2(x)))
-#         print(x.shape)
+        x += res
         x = self.activation(self.pool(x))
 #         print(x.shape)
         x = self.activation(self.norm_512(self.conv3(x)))
@@ -98,7 +99,7 @@ class Net(nn.Module):
 #         x = F.relu(self.conv_test(x))
 #         x = self.conv_test2(x)
         
-#         print(x.shape)
+        print(x.shape)
 #         print(x.shape)
 #         x = x.view(-1,5)
 #         print(x.shape)
