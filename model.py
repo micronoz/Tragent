@@ -121,15 +121,15 @@ class _DenseLayer(nn.Sequential):
         self.add_module('norm1', nn.BatchNorm2d(input_features)),
         self.add_module('relu1', nn.ReLU(inplace=True)),
         self.add_module('conv1', nn.Conv2d(input_features, expansion *
-                        growth_rate, kernel_size=1, stride=1, bias=True)),
+                        growth_rate, kernel_size=1, stride=1, bias=False)),
         self.add_module('norm2', nn.BatchNorm2d(expansion * growth_rate)),
         self.add_module('relu2', nn.ReLU(inplace=True)),
         self.add_module('conv2', nn.Conv2d(expansion * growth_rate, growth_rate,
-                        kernel_size=(3,1), stride=1, padding=(1,0), bias=True))
+                        kernel_size=(3,1), stride=1, padding=(1,0), bias=False))
 
     def forward(self, x):
         out = super(_DenseLayer, self).forward(x)
-        return torch.cat([out, x],1)
+        return torch.cat([x, out],1)
 
 class _DenseBlock(nn.Sequential):
     def __init__(self, num_layers, input_features, growth_rate, expansion):
@@ -146,7 +146,7 @@ class _Transition(nn.Sequential):
         self.add_module('norm', nn.BatchNorm2d(input_features))
         self.add_module('relu', nn.ReLU(inplace=True))
         self.add_module('conv', nn.Conv2d(input_features, output_features,
-                                          kernel_size=1, stride=1, bias=True))
+                                          kernel_size=1, stride=1, bias=False))
         self.add_module('pool', nn.AvgPool2d(kernel_size=(2,1), stride=(2,1)))
 
 class DenseNet(nn.Module):
@@ -178,6 +178,7 @@ class DenseNet(nn.Module):
         #Decision layer
         self.features.add_module('final_pool', nn.AdaptiveAvgPool2d((1,num_classes)))
         self.features.add_module('final_relu', nn.ReLU(inplace=True))
+        self.final_pool = nn.AdaptiveAvgPool2d((1,1))
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -190,10 +191,8 @@ class DenseNet(nn.Module):
         
     def forward(self, x):
         result = self.features(x)
-        final_conv = nn.Conv2d(result.size(1), 50, kernel_size=(1,1), bias=True)
-        final_conv_2 = nn.Conv2d(50, 1, kernel_size=(1,1), bias=True)
-        result = final_conv(result)
-        result = final_conv_2(result)
+        result = torch.transpose(result,1,3)
+        result = self.final_pool(result)
         result = result.view(-1,self.num_classes)
         result = F.softmax(result, dim=1)
         return result
