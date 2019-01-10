@@ -1,9 +1,3 @@
-
-# coding: utf-8
-
-# In[1]:
-
-
 from __future__ import print_function, division
 import torch
 from torch.utils.data import Dataset, DataLoader, SubsetRandomSampler
