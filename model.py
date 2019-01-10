@@ -157,7 +157,7 @@ class DenseNet(nn.Module):
 
         #Initial layer
         self.features = nn.Sequential(OrderedDict([
-            ('init_conv', nn.Conv2d(3, init_layer, kernel_size=1, stride=1, bias=True)),
+            ('init_conv', nn.Conv2d(3, init_layer, kernel_size=1, stride=1, bias=False)),
             ('init_bn', nn.BatchNorm2d(init_layer)),
             ('init_relu', nn.ReLU(inplace=True))
         ]))

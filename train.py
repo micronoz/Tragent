@@ -43,7 +43,7 @@ def test(model, test_loader, epoch):
             j = i
             _, readable_loss = loss_fn(model, b)
             loss += readable_loss.item() * 10000
-        print('Epoch {} test gain: {}\n'.format(epoch+1, loss/(j+1)),)
+        print('Epoch {} test gain: {}'.format(epoch+1, loss/(j+1)),)
 
 class CurrencyDataset(Dataset):
     def __init__(self,root_dir):
@@ -96,11 +96,11 @@ def main():
     device = 'cuda:0'
     currency_count = 5
     #net = ResNet([3,8,36,3], currency_count)
-    net = DenseNet(currency_count, reduce=True, layer_config=(18,36,48,24))
+    net = DenseNet(currency_count, reduce=True, layer_config=(18,24,36,24))
     net = nn.DataParallel(net)
     net.cuda()
     net.train()
-    dataloader = DataLoader(data,batch_size=128,pin_memory=True, sampler=SubsetRandomSampler(train_indices))
+    dataloader = DataLoader(data,batch_size=256,pin_memory=True, sampler=SubsetRandomSampler(train_indices))
     test_loader = DataLoader(data,batch_size=64,pin_memory=True, sampler=SubsetRandomSampler(test_indices))
     #dataloader = DataLoader(data,batch_size=50,pin_memory=True,shuffle=True)
 
@@ -138,7 +138,7 @@ def main():
             optimizer.step()
         print('Epoch {} training gain: {}'.format(epoch+1, epoch_loss/(j+1)))
         test(net, test_loader, epoch)
-        print('Time taken for epoch: {} minutes'.format((time.time()-epoch_time)/60))
+        print('Time taken for epoch: {} minutes\n'.format((time.time()-epoch_time)/60))
     end = time.time()
     print("FINAL TIME: {}".format(end-begin))
 
