@@ -90,7 +90,7 @@ def main():
     torch.manual_seed(991)
     torch.set_default_tensor_type('torch.cuda.FloatTensor')
     data = CurrencyDataset('./Processed')
-    train_indices, test_indices = data.train_test_split(subset=0.01)
+    train_indices, test_indices = data.train_test_split(subset=0.02)
     print('Train size: {}'.format(len(train_indices)))
     print('Test size: {}'.format(len(test_indices)))
     device = 'cuda:0'
@@ -117,6 +117,7 @@ def main():
     print_every = 16
     begin = time.time()
     for epoch in range(200):
+        epoch_time = time.time()
         epoch_loss = 0.0
         running_loss = 0.0
         net.train()
@@ -135,8 +136,9 @@ def main():
 
             loss.backward()
             optimizer.step()
-        print('Epoch {} training gain: {}\r'.format(epoch+1, epoch_loss/(j+1)))
+        print('Epoch {} training gain: {}'.format(epoch+1, epoch_loss/(j+1)))
         test(net, test_loader, epoch)
+        print('Time taken for epoch: {} minutes'.format((time.time()-epoch_time)/60))
     end = time.time()
     print("FINAL TIME: {}".format(end-begin))
 
