@@ -9,6 +9,8 @@ import torch.optim as optim
 import time
 import argparse
 import os
+import math
+import random
 from model import DenseNet, ResNet
 
 
@@ -17,8 +19,6 @@ def loss_fn(net, batch_in):
     d = d.float()
     y = y.float()
     currency_count = y.shape[1]
-    y[y <= 0.0] = 1.0
-    y[y > 3.0] = 1.0
     saved = y
     y = (y ** -1) ** 2
     d = d.cuda()
@@ -56,8 +56,14 @@ class CurrencyDataset(Dataset):
         return (data,labels)
     def __len__(self):
         return len(os.listdir(os.path.join(self.dir,'Batches')))
-    def train_test_split(self, p=0.1):
-        pass
+    def train_test_split(self, test_size=0.1, subset=1):
+        full = list(range(self.__len__()))
+        random.shuffle(full)
+        full = full[:int(subset * len(full))]
+        train = full[int(test_size * len(full)):]
+        test = full[:int(test_size * len(full))]
+        return train, test
+        
 
 
 def weight_reset(m):
@@ -84,16 +90,18 @@ def main():
     torch.manual_seed(991)
     torch.set_default_tensor_type('torch.cuda.FloatTensor')
     data = CurrencyDataset('./Processed')
+    train_indices, test_indices = data.train_test_split(subset=0.01)
+    print('Train size: {}'.format(len(train_indices)))
+    print('Test size: {}'.format(len(test_indices)))
     device = 'cuda:0'
     currency_count = 5
     #net = ResNet([3,8,36,3], currency_count)
-    net = DenseNet(currency_count,reduce=True, layer_config=(18,36,48,24))
+    net = DenseNet(currency_count, reduce=True, layer_config=(18,36,48,24))
     net = nn.DataParallel(net)
-    print(net)
     net.cuda()
     net.train()
-    dataloader = DataLoader(data,batch_size=128,pin_memory=True, sampler=SubsetRandomSampler(list(range(5000,8000))))
-    test_loader = DataLoader(data,batch_size=64,pin_memory=True, sampler=SubsetRandomSampler(list(range(3400,3464))))
+    dataloader = DataLoader(data,batch_size=128,pin_memory=True, sampler=SubsetRandomSampler(train_indices))
+    test_loader = DataLoader(data,batch_size=64,pin_memory=True, sampler=SubsetRandomSampler(test_indices))
     #dataloader = DataLoader(data,batch_size=50,pin_memory=True,shuffle=True)
 
 
