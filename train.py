@@ -20,7 +20,7 @@ def loss_fn(net, batch_in):
     y = y.float()
     currency_count = y.shape[1]
     saved = y
-    y = (y ** -1)
+    y = (y ** -1) ** 2
     d = d.cuda()
     x = net(d)
     y = (y.reshape([-1,currency_count])).cuda()
@@ -90,7 +90,7 @@ def main():
     torch.manual_seed(991)
     torch.set_default_tensor_type('torch.cuda.FloatTensor')
     data = CurrencyDataset('./Processed')
-    train_indices, test_indices = data.train_test_split(subset=0.1)
+    train_indices, test_indices = data.train_test_split(subset=0.001)
     print('Train size: {}'.format(len(train_indices)))
     print('Test size: {}'.format(len(test_indices)))
     device = 'cuda:0'
@@ -100,13 +100,13 @@ def main():
     net = nn.DataParallel(net)
     net.cuda()
     net.train()
-    dataloader = DataLoader(data,batch_size=168,pin_memory=True, sampler=SubsetRandomSampler(train_indices))
+    dataloader = DataLoader(data,batch_size=160,pin_memory=True, sampler=SubsetRandomSampler(train_indices))
     test_loader = DataLoader(data,batch_size=64,pin_memory=True, sampler=SubsetRandomSampler(test_indices))
     #dataloader = DataLoader(data,batch_size=50,pin_memory=True,shuffle=True)
 
 
 
-    optimizer = optim.Adam(net.parameters(recurse=True), lr=0.0001)
+    optimizer = optim.Adam(net.parameters(recurse=True), lr=0.0003)
 
 
 
