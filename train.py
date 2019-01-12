@@ -20,7 +20,7 @@ def loss_fn(net, batch_in):
     y = y.float()
     currency_count = y.shape[1]
     saved = y
-    y = (y ** -1) ** 2
+    y = (y ** -1)
     d = d.cuda()
     x = net(d)
     y = (y.reshape([-1,currency_count])).cuda()
@@ -72,13 +72,13 @@ def weight_reset(m):
 
 
 def main():
-    # parser = argparse.ArgumentParser()
-    # parser.add_argument('cuda_dev', type=int,
-    #                     help='CUDA Device ID')
-    # args = parser.parse_args()
-    # os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
-    # os.environ["CUDA_VISIBLE_DEVICES"]=str(args.cuda_dev)
-    os.environ["CUDA_VISIBLE_DEVICES"]="0,1"
+    parser = argparse.ArgumentParser()
+    parser.add_argument('cuda_dev', type=int,
+                         help='CUDA Device ID')
+    args = parser.parse_args()
+    os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
+    os.environ["CUDA_VISIBLE_DEVICES"]=str(args.cuda_dev)
+    #os.environ["CUDA_VISIBLE_DEVICES"]="0,1"
 
 
 
@@ -90,23 +90,23 @@ def main():
     torch.manual_seed(991)
     torch.set_default_tensor_type('torch.cuda.FloatTensor')
     data = CurrencyDataset('./Processed')
-    train_indices, test_indices = data.train_test_split(subset=0.02)
+    train_indices, test_indices = data.train_test_split(subset=0.1)
     print('Train size: {}'.format(len(train_indices)))
     print('Test size: {}'.format(len(test_indices)))
     device = 'cuda:0'
     currency_count = 5
     #net = ResNet([3,8,36,3], currency_count)
-    net = DenseNet(currency_count, reduce=True, layer_config=(18,24,36,24))
+    net = DenseNet(currency_count, reduce=True, layer_config=(6,12,36,24), growth_rate=48, init_layer=96)
     net = nn.DataParallel(net)
     net.cuda()
     net.train()
-    dataloader = DataLoader(data,batch_size=256,pin_memory=True, sampler=SubsetRandomSampler(train_indices))
+    dataloader = DataLoader(data,batch_size=168,pin_memory=True, sampler=SubsetRandomSampler(train_indices))
     test_loader = DataLoader(data,batch_size=64,pin_memory=True, sampler=SubsetRandomSampler(test_indices))
     #dataloader = DataLoader(data,batch_size=50,pin_memory=True,shuffle=True)
 
 
 
-    optimizer = optim.Adam(net.parameters(recurse=True), lr=0.0003)
+    optimizer = optim.Adam(net.parameters(recurse=True), lr=0.0001)
 
 
 
@@ -116,7 +116,7 @@ def main():
     net.apply(weight_reset)
     print_every = 16
     begin = time.time()
-    for epoch in range(200):
+    for epoch in range(100):
         epoch_time = time.time()
         epoch_loss = 0.0
         running_loss = 0.0
