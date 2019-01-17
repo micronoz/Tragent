@@ -108,7 +108,7 @@ class ResNet(nn.Module):
 
 
 class _DenseLayer(nn.Sequential):
-    def __init__(self, input_features, growth_rate, expansion):
+    def __init__(self, input_features, growth_rate, expansion, drop_rate):
         """ 
         This is an implementation of Dense layers from the DenseNet
         convolutional architecture.
@@ -118,6 +118,7 @@ class _DenseLayer(nn.Sequential):
         expansion: amount of channel expansion
         """
         super(_DenseLayer, self).__init__()
+        self.drop_rate = drop_rate
         self.add_module('norm1', nn.BatchNorm2d(input_features)),
         self.add_module('relu1', nn.ReLU(inplace=True)),
         self.add_module('conv1', nn.Conv2d(input_features, expansion *
@@ -129,14 +130,16 @@ class _DenseLayer(nn.Sequential):
 
     def forward(self, x):
         out = super(_DenseLayer, self).forward(x)
+        if (self.drop_rate > 0):
+            out = F.dropout(out, p=self.drop_rate, training=self.training)
         return torch.cat([x, out],1)
 
 class _DenseBlock(nn.Sequential):
-    def __init__(self, num_layers, input_features, growth_rate, expansion):
+    def __init__(self, num_layers, input_features, growth_rate, expansion, drop_rate):
         """ Convolutional block that consists of DenseLayer layers."""
         super(_DenseBlock, self).__init__()
         for n in range(num_layers):
-            layer = _DenseLayer(input_features + (n * growth_rate), growth_rate, expansion)
+            layer = _DenseLayer(input_features + (n * growth_rate), growth_rate, expansion, drop_rate)
             self.add_module('dense_layer%d' % (n+1), layer)
 
 class _Transition(nn.Sequential):
@@ -151,7 +154,7 @@ class _Transition(nn.Sequential):
 
 class DenseNet(nn.Module):
     def __init__(self, num_classes, growth_rate=32, 
-                layer_config=(6,12,24,16), init_layer=64, expansion=4, reduce=False):
+                layer_config=(6,12,24,16), init_layer=64, expansion=4, reduce=False, drop_rate=0):
         super(DenseNet, self).__init__()
         self.num_classes = num_classes
 
@@ -165,7 +168,7 @@ class DenseNet(nn.Module):
         #Dense blocks
         channels = init_layer
         for i, layer_count in enumerate(layer_config):
-            block = _DenseBlock(layer_count, channels, growth_rate=growth_rate, expansion=expansion)
+            block = _DenseBlock(layer_count, channels, growth_rate=growth_rate, expansion=expansion, drop_rate=drop_rate)
             channels = channels + layer_count * growth_rate
             self.features.add_module('denseblock%d' % (i+1), block)
             
@@ -182,7 +185,7 @@ class DenseNet(nn.Module):
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight)
+                nn.init.xavier_normal_(m.weight)
             elif isinstance(m, nn.BatchNorm2d):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)

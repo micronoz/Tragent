@@ -20,7 +20,7 @@ def loss_fn(net, batch_in):
     y = y.float()
     currency_count = y.shape[1]
     saved = y
-    y = (y ** -1) ** 2
+    y = (y ** -1)
     d = d.cuda()
     x = net(d)
     y = (y.reshape([-1,currency_count])).cuda()
@@ -68,17 +68,17 @@ class CurrencyDataset(Dataset):
 
 def weight_reset(m):
     if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
-        torch.nn.init.kaiming_normal_(m.weight)
+        torch.nn.init.xavier_normal_(m.weight)
 
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('cuda_dev', type=int,
-                         help='CUDA Device ID')
-    args = parser.parse_args()
-    os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
-    os.environ["CUDA_VISIBLE_DEVICES"]=str(args.cuda_dev)
-    #os.environ["CUDA_VISIBLE_DEVICES"]="0,1"
+    #parser = argparse.ArgumentParser()
+    #parser.add_argument('cuda_dev', type=int,
+    #                     help='CUDA Device ID')
+    #args = parser.parse_args()
+    #os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
+    #os.environ["CUDA_VISIBLE_DEVICES"]=str(args.cuda_dev)
+    os.environ["CUDA_VISIBLE_DEVICES"]="1"
 
 
 
@@ -96,7 +96,7 @@ def main():
     device = 'cuda:0'
     currency_count = 5
     #net = ResNet([3,8,36,3], currency_count)
-    net = DenseNet(currency_count, reduce=True, layer_config=(6,12,36,24), growth_rate=48, init_layer=96)
+    net = DenseNet(currency_count, reduce=True, layer_config=(6,12,36,24), growth_rate=48, init_layer=96, drop_rate=0.5)
     net = nn.DataParallel(net)
     net.cuda()
     net.train()
@@ -106,14 +106,13 @@ def main():
 
 
 
-    optimizer = optim.Adam(net.parameters(recurse=True), lr=0.0003)
+    optimizer = optim.Adam(net.parameters(recurse=True), lr=0.0002)
 
 
 
     
 
 
-    net.apply(weight_reset)
     print_every = 16
     begin = time.time()
     for epoch in range(100):
