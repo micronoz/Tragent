@@ -95,20 +95,23 @@ def main():
     
     global loss_factor
     loss_factor = int(input('Loss factor:'))
+    drop_in = float(input('Drop rate:'))
 
     torch.set_default_tensor_type('torch.cuda.FloatTensor')
-    data = CurrencyDataset('./Processed')
-    train_indices, test_indices = data.train_test_split(subset=0.001)
+    #data = CurrencyDataset('./Processed')
+    data = CurrencyDataset('/mnt/disks/Data')
+    train_indices, test_indices = data.train_test_split(subset=0.5)
     print('Train size: {}'.format(len(train_indices)))
     print('Test size: {}'.format(len(test_indices)))
     currency_count = 5
     #net = ResNet([3,8,36,3], currency_count)
-    net = DenseNet(currency_count, reduce=True, layer_config=(6,12,36,24), growth_rate=48, init_layer=96, drop_rate=float(input('Drop rate:')))
+    
+    net = DenseNet(currency_count, reduce=True, layer_config=(6,12,36,24), growth_rate=48, init_layer=96, drop_rate=drop_in)
     net = nn.DataParallel(net)
     net.cuda()
     net.train()
-    dataloader = DataLoader(data,batch_size=100,pin_memory=True, sampler=SubsetRandomSampler(train_indices))
-    test_loader = DataLoader(data,batch_size=32,pin_memory=True, sampler=SubsetRandomSampler(test_indices))
+    dataloader = DataLoader(data,batch_size=456,pin_memory=True, sampler=SubsetRandomSampler(train_indices))
+    test_loader = DataLoader(data,batch_size=128,pin_memory=True, sampler=SubsetRandomSampler(test_indices))
     #dataloader = DataLoader(data,batch_size=50,pin_memory=True,shuffle=True)
 
     #Optimizer
@@ -130,8 +133,7 @@ def main():
             loss.backward()
             optimizer.step()
         print('Epoch {} training gain: {}'.format(epoch+1, epoch_loss/len(train_indices)))
-        for i in range(2):
-            running_loss = test(net, test_loader, epoch, len(test_indices))
+        running_loss = test(net, test_loader, epoch, len(test_indices))
         #scheduler.step(running_loss)
         #print(optimizer.state_dict()['param_groups'][0]['lr'])
         print('Time taken for epoch: {} minutes\n'.format((time.time()-epoch_time)/60))
