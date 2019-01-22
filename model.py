@@ -34,7 +34,7 @@ class Bottleneck(nn.Module):
         self.bn2 = nn.BatchNorm2d(out_channels)
         self.conv3 = conv1(out_channels, out_channels * self.expansion)
         self.bn3 = nn.BatchNorm2d(out_channels * self.expansion)
-        self.relu = nn.ReLU(inplace=True)
+        self.relu = nn.ReLU()
         self.downsample = downsample
         self.stride = stride
 
@@ -120,18 +120,18 @@ class _DenseLayer(nn.Sequential):
         super(_DenseLayer, self).__init__()
         self.drop_rate = drop_rate
         self.add_module('norm1', nn.BatchNorm2d(input_features)),
-        self.add_module('relu1', nn.ReLU(inplace=True)),
+        self.add_module('relu1', nn.ReLU()),
         self.add_module('conv1', nn.Conv2d(input_features, expansion *
                         growth_rate, kernel_size=1, stride=1, bias=False)),
         self.add_module('norm2', nn.BatchNorm2d(expansion * growth_rate)),
-        self.add_module('relu2', nn.ReLU(inplace=True)),
+        self.add_module('relu2', nn.ReLU()),
         self.add_module('conv2', nn.Conv2d(expansion * growth_rate, growth_rate,
                         kernel_size=(3,1), stride=1, padding=(1,0), bias=False))
 
     def forward(self, x):
         out = super(_DenseLayer, self).forward(x)
         if (self.drop_rate > 0):
-            out = F.dropout(out, p=self.drop_rate, training=self.training)
+            out = F.dropout2d(out, p=self.drop_rate, training=self.training)
         return torch.cat([x, out],1)
 
 class _DenseBlock(nn.Sequential):
@@ -147,7 +147,7 @@ class _Transition(nn.Sequential):
         super(_Transition, self).__init__()
 
         self.add_module('norm', nn.BatchNorm2d(input_features))
-        self.add_module('relu', nn.ReLU(inplace=True))
+        self.add_module('relu', nn.ReLU())
         self.add_module('conv', nn.Conv2d(input_features, output_features,
                                           kernel_size=1, stride=1, bias=False))
         self.add_module('pool', nn.AvgPool2d(kernel_size=(2,1), stride=(2,1)))
@@ -162,7 +162,7 @@ class DenseNet(nn.Module):
         self.features = nn.Sequential(OrderedDict([
             ('init_conv', nn.Conv2d(3, init_layer, kernel_size=1, stride=1, bias=False)),
             ('init_bn', nn.BatchNorm2d(init_layer)),
-            ('init_relu', nn.ReLU(inplace=True))
+            ('init_relu', nn.ReLU())
         ]))
 
         #Dense blocks
@@ -180,7 +180,7 @@ class DenseNet(nn.Module):
         
         #Decision layer
         self.features.add_module('final_pool', nn.AdaptiveAvgPool2d((1,num_classes)))
-        self.features.add_module('final_relu', nn.ReLU(inplace=True))
+        self.features.add_module('final_relu', nn.ReLU())
         self.final_pool = nn.AdaptiveAvgPool2d((1,1))
 
         for m in self.modules():
@@ -199,20 +199,3 @@ class DenseNet(nn.Module):
         result = result.view(-1,self.num_classes)
         result = F.softmax(result, dim=1)
         return result
-
-# To be implemented
-# class ResNeXt(nn.Module):
-#     def __init__(self, bottleneck, depth, cardinality, base_width, num_classes):
-#         super(ResNeXt, self).__init__()
-#         assert (depth == 50 or depth == 101 or depth == 152), 'Depth value wrong!'
-
-#         self.cardinality = cardinality
-#         self.base_width = base_width
-#         self.num_classes = num_classes
-#         self.expansion = 128
-
-#         self.initial_conv = nn.Conv2d(3,self.expansion,(3,1),1,(1,0),bias=True)
-#         self.initial_bn = nn.BatchNorm2d(self.expansion)
-
-#         self.in_channels = self.expansion
-#         self.stage_1 = self._make_layer(bottleneck)
