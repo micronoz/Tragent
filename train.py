@@ -13,6 +13,7 @@ import math
 import random
 from model import DenseNet, ResNet
 
+loss_factor = int(input('Loss factor:'))
 
 def loss_fn(net, batch_in):
     d,y = batch_in
@@ -20,9 +21,10 @@ def loss_fn(net, batch_in):
     y = y.float()
     currency_count = y.shape[1]
     saved = y
-    y = (y ** -1)
+    y = ((y) ** -1) ** loss_factor
     d = d.cuda()
     x = net(d)
+    #x = (x ** -1) ** loss_factor
     y = (y.reshape([-1,currency_count])).cuda()
     readable_loss = torch.mul(x,saved.reshape([-1,currency_count]).cuda()).sum(dim=1)
     s = readable_loss.shape[0]
@@ -38,12 +40,15 @@ def loss_fn(net, batch_in):
 def test(model, test_loader, epoch):
         model.eval()
         loss = 0
+        raw_loss = 0.0
         j = 0
         for i,b in enumerate(test_loader, 0):
             j = i
-            _, readable_loss = loss_fn(model, b)
+            rl, readable_loss = loss_fn(model, b)
+            raw_loss += rl.item()
             loss += readable_loss.item() * 10000
         print('Epoch {} test gain: {}'.format(epoch+1, loss/(j+1)),)
+        return raw_loss
 
 class CurrencyDataset(Dataset):
     def __init__(self,root_dir):
@@ -76,27 +81,20 @@ def main():
     #parser.add_argument('cuda_dev', type=int,
     #                     help='CUDA Device ID')
     #args = parser.parse_args()
-    #os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
+    os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
     #os.environ["CUDA_VISIBLE_DEVICES"]=str(args.cuda_dev)
-    os.environ["CUDA_VISIBLE_DEVICES"]="1"
-
-
-
-
-
-
+    os.environ["CUDA_VISIBLE_DEVICES"]=str(input('CUDA Device:'))
 
     torch.backends.cudnn.deterministic = False
     torch.manual_seed(991)
     torch.set_default_tensor_type('torch.cuda.FloatTensor')
     data = CurrencyDataset('./Processed')
-    train_indices, test_indices = data.train_test_split(subset=0.001)
+    train_indices, test_indices = data.train_test_split(subset=0.01)
     print('Train size: {}'.format(len(train_indices)))
     print('Test size: {}'.format(len(test_indices)))
-    device = 'cuda:0'
     currency_count = 5
     #net = ResNet([3,8,36,3], currency_count)
-    net = DenseNet(currency_count, reduce=True, layer_config=(6,12,36,24), growth_rate=48, init_layer=96, drop_rate=0.5)
+    net = DenseNet(currency_count, reduce=True, layer_config=(6,12,36,24), growth_rate=48, init_layer=96, drop_rate=float(input('Drop rate:')))
     net = nn.DataParallel(net)
     net.cuda()
     net.train()
@@ -104,21 +102,15 @@ def main():
     test_loader = DataLoader(data,batch_size=64,pin_memory=True, sampler=SubsetRandomSampler(test_indices))
     #dataloader = DataLoader(data,batch_size=50,pin_memory=True,shuffle=True)
 
+    #Optimizer
+    optimizer = optim.Adamax(net.parameters(recurse=True), lr=0.0002)
+    #optimizer = optim.SGD(net.parameters(recurse=True), lr=0.01, nesterov=True, momentum=0.9)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer)
 
-
-    optimizer = optim.Adam(net.parameters(recurse=True), lr=0.0002)
-
-
-
-    
-
-
-    print_every = 16
     begin = time.time()
     for epoch in range(100):
         epoch_time = time.time()
         epoch_loss = 0.0
-        running_loss = 0.0
         net.train()
         j = 0
         for i,batch in enumerate(dataloader, 0):
@@ -126,17 +118,12 @@ def main():
             optimizer.zero_grad()
             loss, readable_loss = loss_fn(net, batch)
             epoch_loss += readable_loss.item() * 10000
-            # running_loss += readable_loss.item()
-            # if i % print_every == print_every - 1:
-            #     print('[%d, %5d] loss: %.3f' %
-            #           (epoch + 1, i + 1, running_loss / print_every))
-            #     print('Time elapsed: {} minutes'.format((time.time() - begin)/60))
-            #     running_loss = 0.0
-
             loss.backward()
             optimizer.step()
         print('Epoch {} training gain: {}'.format(epoch+1, epoch_loss/(j+1)))
-        test(net, test_loader, epoch)
+        running_loss = test(net, test_loader, epoch)
+        #scheduler.step(running_loss)
+        print(optimizer.state_dict()['param_groups'][0]['lr'])
         print('Time taken for epoch: {} minutes\n'.format((time.time()-epoch_time)/60))
     end = time.time()
     print("FINAL TIME: {}".format(end-begin))
