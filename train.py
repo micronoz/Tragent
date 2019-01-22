@@ -16,7 +16,7 @@ from model import DenseNet, ResNet
 #torch.backends.cudnn.deterministic = True
 #torch.backends.cudnn.benchmark = False
 
-
+loss_factor = 2
 
 def loss_fn(net, batch_in):
     d,y = batch_in
@@ -92,6 +92,8 @@ def main():
     random.seed(1)
     np.random.seed(1)
     torch.manual_seed(5)
+    
+    global loss_factor
     loss_factor = int(input('Loss factor:'))
 
     torch.set_default_tensor_type('torch.cuda.FloatTensor')
