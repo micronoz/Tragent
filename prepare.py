@@ -1,5 +1,3 @@
-
-#%%
 import pandas as pd
 import os
 import itertools
@@ -7,11 +5,10 @@ import numpy as np
 import gc
 import math
 import time
-from multiprocessing import Process
+from multiprocessing import Process, Lock
+from zipfile import ZipFile
 gc.enable()
 
-
-#%%
 class Market:
     def __init__(self, currencies, data_path, processor):
         self.path = data_path
@@ -19,23 +16,22 @@ class Market:
         self.pairs = list(itertools.permutations(currencies,2))
         self.reference_currency = 'USD'
         self.proc_count = processor
-        
+
     def import_file(self):
         df = {}
-        data_path = os.path.abspath(self.path)
-        available_files = os.listdir(data_path)
-        
+        available_files = os.listdir(self.path)
+
         for pair_tuple in self.pairs:
             pair = pair_tuple[0] + pair_tuple[1]
             if (pair + '.csv') in available_files:
-                if os.path.isfile(os.path.join(data_path, pair + '.csv')):
-                    
-                    df[pair] = pd.read_csv(os.path.join(data_path, pair + '.csv'), delimiter='\t', 
+                if os.path.isfile(os.path.join(self.path, pair + '.csv')):
+
+                    df[pair] = pd.read_csv(os.path.join(self.path, pair + '.csv'), delimiter='\t',
                                             usecols=['Timestamp', 'Open', 'High', 'Low', 'Close'])
                 else:
                     continue
         self.data = df
-    
+
     def process_time_period(self, timePeriod, index, size):
         allPrices = np.zeros(shape=(size, 3, timePeriod, len(self.currencies)))
         allRates = np.zeros(shape=(size, len(self.currencies), 1))
@@ -76,13 +72,13 @@ class Market:
                     allRates[i, m, 0] = rate
             m += 1
         return (allPrices, allRates)
-    
+
     def prepare_data(self, batch_size, period_size, reset=False, count=-1, start=1):
-        self.batch_path = os.path.abspath("./Processed/Batches")
-        self.label_path = os.path.abspath("./Processed/Labels")
+        self.batch_path = os.path.abspath(os.path.join(self.path, 'Batches/'))
+        self.label_path = os.path.abspath(os.path.join(self.path, 'Labels/'))
         self.batch_size = batch_size
         self.period_size = period_size
-       
+
         if not os.path.exists(self.batch_path):
             os.makedirs(self.batch_path)
         if not os.path.exists(self.label_path):
@@ -105,13 +101,17 @@ class Market:
             self.batch = int(math.floor(min_size / self.batch_size)) - 1
         else:
             self.batch = count
-        name = 0
         each = self.batch // self.proc_count
         processes = []
         print(each)
         print(self.proc_count)
+        each = 500
+        zip_path = os.path.join(self.path, 'All_Data.zip')
+        zip_obj = ZipFile(zip_path, mode='w')
+        zip_obj.close()
+        lock = Lock()
         for i in range(self.proc_count):
-            p = Process(target=self.export_range, args=((list(range(i*each, (i+1)*each)),)))
+            p = Process(target=self.export_range, args=((list(range(i*each, (i+1)*each)),zip_path, lock)))
             processes.append(p)
             p.start()
         #for i in range(start,self.batch + start):
@@ -121,27 +121,55 @@ class Market:
             p.join()
         later = time.time()
         print((later-now)/60)
+        print('Closing')
+        
 
-    def export_range(self, index):
+    def export_range(self, index, zip_path, lock): 
+        indices = []
+        count = 0
         for i in index:
-            self.export_batch(i, i)
+            self.export_batch(i, i, zip_path, lock)
+            indices.append(i)
+            count += 1
+            if (count == 50):
+                count = 0
+                self.write_to_zip(indices, zip_path, lock)
+                indices = []
+        self.write_to_zip(indices, zip_path, lock)
+        
+    def write_to_zip(self, indices, zip_path, lock):
+        lock.acquire()
+        for i in indices:
+            batch_name = os.path.join(self.batch_path, "Batch_" + str(i))
+            label_name = os.path.join(self.label_path, "Label_" + str(i))
+            zip_obj = ZipFile(zip_path, mode='a')
+            zip_obj.write(batch_name + '.npy', 'Batches/' + 'Batch_' + str(i) + '.npy')
+            zip_obj.write(label_name + '.npy', 'Labels/' + 'Label_' + str(i) + '.npy')
+            zip_obj.close()
+            os.remove(batch_name + '.npy')
+            os.remove(label_name + '.npy')
+        lock.release()
+    
 
-    def export_batch(self, index, name):
+    def export_batch(self, index, name, zip_path, lock):
         try:
             (movements, rates) = self.process_time_period(self.period_size, index, self.batch_size)
             if self.batch_size == 1:
                 movements = np.squeeze(movements,axis=0)
                 rates = np.squeeze(rates,axis=0)
-            np.save((os.path.join(self.batch_path, "Batch_" + str(name))), movements)
-            np.save((os.path.join(self.label_path, "Label_" + str(name))), rates)
+            batch_name = os.path.join(self.batch_path, "Batch_" + str(name))
+            label_name = os.path.join(self.label_path, "Label_" + str(name))
+            np.save(batch_name, movements)
+            np.save(label_name, rates)
+
         except:
             raise ValueError(str(index) +' and '+ str(name))
 
-
-#%%
-market = Market(['TRY','USD', 'EUR', 'NZD', 'GBP'],'./Processed', 16)
-market.import_file()
-market.prepare_data(1,50,reset=True)
+if __name__ == '__main__':
+    processed_path = os.path.abspath(input('Path to data: '))
+    market = Market(['TRY','USD', 'EUR', 'NZD', 'GBP'], processed_path, 24)
+    market.import_file()
+    market.prepare_data(1,50,reset=True)
 
 
 

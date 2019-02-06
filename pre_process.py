@@ -65,7 +65,8 @@ class PairData:
 
 # In[4]:
 
-process_dir = os.path.join(master_dir, 'Processed/')
+#process_dir = os.path.join(master_dir, 'Processed/')
+process_dir = os.path.abspath('./Processed')
 
 if not os.path.exists(process_dir):
     os.makedirs(process_dir)
