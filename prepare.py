@@ -35,7 +35,7 @@ class Market:
     def process_time_period(self, timePeriod, index, size):
         allPrices = np.zeros(shape=(size, 3, timePeriod, len(self.currencies)))
         allRates = np.zeros(shape=(size, len(self.currencies), 1))
-        dimensions = ['Open', 'High', 'Low']
+        #dimensions = ['Open', 'High', 'Low']
         m = 0
         for currency in self.currencies:
             if currency + self.reference_currency in self.data.keys():
@@ -105,7 +105,7 @@ class Market:
         processes = []
         print(each)
         print(self.proc_count)
-        each = 500
+        # each = 500
         zip_path = os.path.join(self.path, 'All_Data.zip')
         zip_obj = ZipFile(zip_path, mode='w')
         zip_obj.close()
@@ -131,7 +131,7 @@ class Market:
             self.export_batch(i, i, zip_path, lock)
             indices.append(i)
             count += 1
-            if (count == 50):
+            if (count == 50000):
                 count = 0
                 self.write_to_zip(indices, zip_path, lock)
                 indices = []
@@ -139,15 +139,15 @@ class Market:
         
     def write_to_zip(self, indices, zip_path, lock):
         lock.acquire()
+        zip_obj = ZipFile(zip_path, mode='a')
         for i in indices:
             batch_name = os.path.join(self.batch_path, "Batch_" + str(i))
             label_name = os.path.join(self.label_path, "Label_" + str(i))
-            zip_obj = ZipFile(zip_path, mode='a')
             zip_obj.write(batch_name + '.npy', 'Batches/' + 'Batch_' + str(i) + '.npy')
             zip_obj.write(label_name + '.npy', 'Labels/' + 'Label_' + str(i) + '.npy')
-            zip_obj.close()
             os.remove(batch_name + '.npy')
             os.remove(label_name + '.npy')
+        zip_obj.close()
         lock.release()
     
 
