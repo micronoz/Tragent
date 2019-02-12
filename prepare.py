@@ -98,7 +98,7 @@ class Market:
             if len(pair[1].index) < min_size:
                 min_size = len(pair[1].index)
         if count == -1:
-            self.batch = int(math.floor(min_size / self.batch_size)) - 1
+            self.batch = int(math.floor(min_size / self.batch_size)) - 2
         else:
             self.batch = count
         each = self.batch // self.proc_count
