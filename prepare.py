@@ -54,16 +54,16 @@ class Market:
             for i in range(size):
                 movement = batchValues[i:timePeriod+i]
                 refVal = movement[-1][0]
-                if (refVal == 0):
+                if refVal == 0:
                     raise ValueError(index)
                 movement = movement / refVal
                 movement[movement <= 0.0] = 0.1
                 movement[movement >= 5.0] = 1.0
                 nextPrice = batchValues[timePeriod+i][0]
                 rate = nextPrice / refVal
-                if (rate == 0):
+                if rate == 0:
                     raise ValueError(index)
-                if (pair[0:3] == 'USD'):
+                if pair[0:3] == 'USD':
                     movement **= -1
                     allPrices[i, :, :, m] = np.transpose(movement)
                     allRates[i, m, 0] = 1/rate
@@ -78,6 +78,7 @@ class Market:
         self.label_path = os.path.abspath(os.path.join(self.path, 'Labels/'))
         self.batch_size = batch_size
         self.period_size = period_size
+        proc_count = self.proc_count
 
         if not os.path.exists(self.batch_path):
             os.makedirs(self.batch_path)
@@ -97,20 +98,27 @@ class Market:
         for pair in self.data.items():
             if len(pair[1].index) < min_size:
                 min_size = len(pair[1].index)
-        if count == -1:
-            self.batch = int(math.floor(min_size / self.batch_size)) - 2
+        if count == -1 and batch_size != -1:
+            self.batch = int(min_size // batch_size) - 2
+        elif batch_size == -1:
+            self.batch = min_size - 2
         else:
             self.batch = count
+
         each = self.batch // self.proc_count
+        if batch_size == -1:
+            each = 1
+            proc_count = 1
+            self.batch_size = self.batch
         processes = []
         print(each)
-        print(self.proc_count)
+        print(proc_count)
         # each = 500
         zip_path = os.path.join(self.path, 'All_Data.zip')
         zip_obj = ZipFile(zip_path, mode='w')
         zip_obj.close()
         lock = Lock()
-        for i in range(self.proc_count):
+        for i in range(proc_count):
             p = Process(target=self.export_range, args=((list(range(i*each, (i+1)*each)),zip_path, lock)))
             processes.append(p)
             p.start()
@@ -125,17 +133,17 @@ class Market:
         
 
     def export_range(self, index, zip_path, lock): 
-        indices = []
-        count = 0
+        # indices = []
+        # count = 0
         for i in index:
-            self.export_batch(i, i, zip_path, lock)
-            indices.append(i)
-            count += 1
-            if (count == 50000):
-                count = 0
-                self.write_to_zip(indices, zip_path, lock)
-                indices = []
-        self.write_to_zip(indices, zip_path, lock)
+            self.export_batch(i, i, zip_path)
+            # indices.append(i)
+            # count += 1
+            # if (count == 50000):
+            #     count = 0
+            #     self.write_to_zip(indices, zip_path, lock)
+            #     indices = []
+        # self.write_to_zip(indices, zip_path, lock)
         
     def write_to_zip(self, indices, zip_path, lock):
         lock.acquire()
@@ -151,7 +159,7 @@ class Market:
         lock.release()
     
 
-    def export_batch(self, index, name, zip_path, lock):
+    def export_batch(self, index, name, zip_path):
         try:
             (movements, rates) = self.process_time_period(self.period_size, index, self.batch_size)
             if self.batch_size == 1:
@@ -163,13 +171,14 @@ class Market:
             np.save(label_name, rates)
 
         except:
-            raise ValueError(str(index) +' and '+ str(name))
+            print('Error at: ' + str(index) +' and '+ str(name))
+            return
 
 if __name__ == '__main__':
-    processed_path = os.path.abspath(input('Path to data: '))
+    processed_path = os.path.abspath(input('Path to processed data: '))
     market = Market(['TRY','USD', 'EUR', 'NZD', 'GBP'], processed_path, 24)
     market.import_file()
-    market.prepare_data(1,50,reset=True)
+    market.prepare_data(50,50,reset=True)
 
 
 
