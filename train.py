@@ -32,10 +32,10 @@ def loss_fn(net, batch_in):
     y = (y.reshape([-1,currency_count])).cuda()
     readable_loss = torch.mul(x,saved.reshape([-1,currency_count]).cuda()).sum(dim=1)
     readable_loss = readable_loss.sum()/y.shape[0]
-    z = torch.mul(x,y)
+    z = x * y
     z = z.sum(dim=1)
     loss = z.sum()
-    loss = loss/z.shape[0]
+    # loss = loss/z.shape[0]
     del y
     del d
     return loss,readable_loss
@@ -90,9 +90,9 @@ def main():
 
     #torch.backends.cudnn.benchmark = False
     #torch.backends.cudnn.deterministic = True
-    random.seed(1)
-    np.random.seed(1)
-    torch.manual_seed(5)
+    random.seed(77)
+    np.random.seed(69)
+    torch.manual_seed(3)
     
     global loss_factor
     loss_factor = int(input('Loss factor:'))
@@ -101,25 +101,25 @@ def main():
     torch.set_default_tensor_type('torch.cuda.FloatTensor')
     #data = CurrencyDataset('./Processed')
     data = CurrencyDataset('./Processed/')
-    train_indices, test_indices = data.train_test_split(subset=0.1)
+    train_indices, test_indices = data.train_test_split(subset=0.01)
     print('Train size: {}'.format(len(train_indices)))
     print('Test size: {}'.format(len(test_indices)))
     currency_count = 5
     #net = ResNet([3,8,36,3], currency_count)
     
-    net = DenseNet(currency_count, reduce=True, layer_config=(4,8,16,12), growth_rate=32, init_layer=96, drop_rate=drop_in)
+    net = DenseNet(currency_count, reduce=True, layer_config=(4,8,8,6), growth_rate=32, init_layer=96, drop_rate=drop_in)
     net = nn.DataParallel(net)
     net.cuda()
     net.train()
-    train_batch = 12
+    train_batch = 16
     test_batch = 4
     dataloader = DataLoader(data,batch_size=train_batch,pin_memory=True, sampler=SubsetRandomSampler(train_indices), num_workers=4)
     test_loader = DataLoader(data,batch_size=test_batch,pin_memory=True, sampler=SubsetRandomSampler(test_indices), num_workers=4)
     #dataloader = DataLoader(data,batch_size=50,pin_memory=True,shuffle=True)
 
     #Optimizer
-    optimizer = optim.Adamax(net.parameters(recurse=True), lr=0.0002)
-    #optimizer = optim.SGD(net.parameters(recurse=True), lr=0.01, nesterov=True, momentum=0.9)
+    # optimizer = optim.Adam(net.parameters())
+    optimizer = optim.LBFGS(net.parameters(), history_size=200)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer)
 
     begin = time.time()
@@ -131,14 +131,20 @@ def main():
         pbar = Bar('Epoch ' + str(epoch+1), max=len(train_indices)//train_batch, suffix='%(percent)d%% %(eta)d seconds left.')
         for i,batch in enumerate(dataloader, 0):
             j = i
-            optimizer.zero_grad()
-            loss, readable_loss = loss_fn(net, batch)
-            epoch_loss += readable_loss.item() * 10000
-            loss.backward()
-            optimizer.step()
+            def closure():
+                optimizer.zero_grad()
+                loss, readable_loss = loss_fn(net, batch)
+                # print(readable_loss * 10000)
+                # global epoch_loss
+                # epoch_loss += readable_loss.item() * 10000
+                loss.backward()
+                return loss
+            optimizer.step(closure)
             pbar.next()
+            
         print('\nEpoch {} training gain: {}'.format(epoch+1, epoch_loss/(j+1)))
-        running_loss = test(net, test_loader, epoch, len(test_indices))
+        with torch.no_grad():
+            running_loss = test(net, test_loader, epoch, len(test_indices))
         # running_loss = test(net, test_loader, epoch, len(test_indices))
         #scheduler.step(running_loss)
         #print(optimizer.state_dict()['param_groups'][0]['lr'])
