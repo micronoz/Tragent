@@ -126,12 +126,12 @@ class _DenseLayer(nn.Sequential):
         self.add_module('norm2', nn.BatchNorm2d(expansion * growth_rate)),
         self.add_module('relu2', nn.ReLU(inplace=True)),
         self.add_module('conv2', nn.Conv2d(expansion * growth_rate, growth_rate,
-                        kernel_size=(3,3), stride=1, padding=(1,1), bias=False))
+                        kernel_size=3, stride=1, padding=1, bias=False))
 
     def forward(self, x):
         out = super(_DenseLayer, self).forward(x)
         if (self.drop_rate > 0):
-            out = F.dropout2d(out, p=self.drop_rate, training=self.training)
+            out = F.dropout(out, p=self.drop_rate, training=self.training)
         return torch.cat([x, out],1)
 
 class _DenseBlock(nn.Sequential):
@@ -150,7 +150,7 @@ class _Transition(nn.Sequential):
         self.add_module('relu', nn.ReLU(inplace=True))
         self.add_module('conv', nn.Conv2d(input_features, output_features,
                                           kernel_size=1, stride=1, bias=False))
-        self.add_module('pool', nn.AvgPool2d(kernel_size=(2,1), stride=(2,1)))
+        self.add_module('pool', nn.AvgPool2d(kernel_size=2, stride=2))
 
 class DenseNet(nn.Module):
     def __init__(self, num_classes, growth_rate=32, 
@@ -160,9 +160,10 @@ class DenseNet(nn.Module):
 
         #Initial layer
         self.features = nn.Sequential(OrderedDict([
-            ('init_conv', nn.Conv2d(3, init_layer, kernel_size=1, stride=1, bias=False)),
+            ('init_conv', nn.Conv2d(3, init_layer, kernel_size=7, stride=2, padding=3, bias=False)),
             ('init_bn', nn.BatchNorm2d(init_layer)),
-            ('init_relu', nn.ReLU(inplace=True))
+            ('init_relu', nn.ReLU(inplace=True)),
+            ('init_pool', nn.MaxPool2d(kernel_size=3, stride=2, padding=1))
         ]))
 
         #Dense blocks
@@ -177,6 +178,8 @@ class DenseNet(nn.Module):
                 trans = _Transition(channels, channels // 2)
                 self.features.add_module('transition%d' % (i+1), trans)
                 channels = channels // 2
+        
+        self.classifier = nn.Linear(channels, num_classes)
         
         #Decision layer
         self.features.add_module('final_pool', nn.AdaptiveAvgPool2d((1,num_classes)))
@@ -193,9 +196,11 @@ class DenseNet(nn.Module):
                 nn.init.constant_(m.bias, 0)
         
     def forward(self, x):
-        result = self.features(x)
-        result = torch.transpose(result,1,3)
-        result = self.final_pool(result)
-        result = result.view(-1,self.num_classes)
+        feat = self.features(x)
+        # print(feat.shape)
+        result = F.relu(feat)
+        result = F.adaptive_avg_pool2d(result, (1, 1)).view(feat.size(0), -1)
+        result = self.classifier(result)
         result = torch.sigmoid(result)
+        # print(result.shape)
         return result

@@ -28,12 +28,20 @@ def loss_fn(net, batch_in, currency_select):
     currency_count = y.shape[1]
     # print(y.shape)
     y = (y.reshape([-1,currency_count]))[:, currency_select].cuda()
+    # y = torch.cat([y[:, 0].unsqueeze(1), y[:, currency_select].unsqueeze(1)], 1)
+    # print(y)
     # print(y.shape)
     saved = y
     # print(saved.shape)
-    y = ((y) ** -1) ** loss_factor
+    # y = ((y) ** -1) ** loss_factor
     d = d.cuda()
-    x = net(d).squeeze(1)
+    # print(d.shape)
+    x = net(d).squeeze()
+
+    # print(x)
+
+    # print(x.shape)
+    # print(y.shape)
     # print(x)
     # print(saved)
     #x = (x ** -1) ** loss_factor
@@ -41,16 +49,28 @@ def loss_fn(net, batch_in, currency_select):
     # print(y.shape)
     # print(x.shape)
     # print(x*saved)
-    readable_loss = (x * saved).sum()
-    print(readable_loss.item())
-    readable_loss /= y.shape[0]
+    # readable_loss = (x * saved).sum().sum()
+    
+    # readable_loss /= y.shape[0]
+    # print(readable_loss.item())
     # print(readable_loss)
-    z = x * y
-    loss = z.sum()
-    loss = loss/z.shape[0]
+    # z = x * y
+    # loss = z.sum().sum()
+    # loss = loss/y.shape[0]
+
+    # p = y.clone()
+    # p[p >= 1] = 1
+    # p[p < 1] = 0
+    # best = -((p * y) - p).sum()
+    # print("Best {}".format(best.item()))
+    loss = -((x * y) - x).sum()
+    # print("Done {}".format(loss.item()))
+
+    # readable_loss = 1
+    #print(loss)
     del y
     del d
-    return loss,readable_loss
+    return loss
 
 def test(model, test_loader, epoch, test_size, currency_select):
         model.eval()
@@ -59,10 +79,10 @@ def test(model, test_loader, epoch, test_size, currency_select):
         j = 0
         for i,b in enumerate(test_loader, 0):
             j = i
-            rl, readable_loss = loss_fn(model, b, currency_select)
-            raw_loss = rl.item() + raw_loss
-            loss += readable_loss.item() * 10000
-        print('Epoch {} test gain: {}'.format(epoch+1, loss/(j+1)))
+            rl = loss_fn(model, b, currency_select)
+            raw_loss += rl.item()
+            # loss += readable_loss.item() * 10000
+        print('Epoch {} test loss: {}'.format(epoch+1, raw_loss/(j+1)))
         return raw_loss
 
 class CurrencyDataset(Dataset):
@@ -113,25 +133,26 @@ def main():
     torch.set_default_tensor_type('torch.cuda.FloatTensor')
     #data = CurrencyDataset('./Processed')
     data = CurrencyDataset('./Processed/')
-    train_indices, test_indices = data.train_test_split(subset=0.0005)
+    train_indices, test_indices = data.train_test_split(subset=1)
     print('Train size: {}'.format(len(train_indices)))
     print('Test size: {}'.format(len(test_indices)))
     currency_count = 1
     #net = ResNet([3,8,36,3], currency_count)
     
-    net = DenseNet(currency_count, reduce=True, layer_config=(2,4,4,6), growth_rate=32, init_layer=96, drop_rate=drop_in)
+    net = DenseNet(currency_count, reduce=True, layer_config=(4, 8, 16, 12), growth_rate=32, init_layer=64, drop_rate=drop_in)
+    # net = DenseNet(currency_count, reduce=True, layer_config=(2,4,4,2), growth_rate=48, init_layer=96, drop_rate=drop_in)
     net = nn.DataParallel(net)
     net.cuda()
     net.train()
-    train_batch = 20
-    test_batch = 4
+    train_batch = 300
+    test_batch = 20
     dataloader = DataLoader(data,batch_size=train_batch,pin_memory=True, sampler=SubsetRandomSampler(train_indices), num_workers=4)
     test_loader = DataLoader(data,batch_size=test_batch,pin_memory=True, sampler=SubsetRandomSampler(test_indices), num_workers=4)
     #dataloader = DataLoader(data,batch_size=50,pin_memory=True,shuffle=True)
 
     #Optimizer
-    optimizer = optim.Adam(net.parameters(), lr=0.0001)
-    #optimizer = optim.LBFGS(net.parameters(), history_size=200)
+    optimizer = optim.Adam(net.parameters(), lr=0.001)
+    # optimizer = optim.LBFGS(net.parameters(), history_size=200)
     #scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer)
 
     currency_select = 2
@@ -145,15 +166,20 @@ def main():
         pbar = Bar('Epoch ' + str(epoch+1), max=len(train_indices)//train_batch, suffix='%(percent)d%% %(eta)d seconds left.')
         for i,batch in enumerate(dataloader, 0):
             j = i
-            def closure():
-                optimizer.zero_grad()
-                loss, readable_loss = loss_fn(net, batch, currency_select)
-                # print(readable_loss * 10000)
-                # global epoch_loss
-                # epoch_loss += readable_loss.item() * 10000
-                loss.backward()
-                return loss
-            optimizer.step(closure)
+            # def closure():
+            #     optimizer.zero_grad()
+            #     loss = loss_fn(net, batch, currency_select)
+            #     # print(loss)
+            #     # print(readable_loss * 10000)
+            #     # global epoch_loss
+            #     # epoch_loss += readable_loss.item() * 10000
+            
+            #     return loss
+            optimizer.zero_grad()
+            loss = loss_fn(net, batch, currency_select)
+            loss.backward()
+            optimizer.step()
+            epoch_loss += loss.item()
             pbar.next()
             
         print('\nEpoch {} training gain: {}'.format(epoch+1, epoch_loss/(j+1)))
