@@ -13,41 +13,53 @@ import math
 import random
 from model import DenseNet, ResNet
 from progress.bar import Bar
+import json
 
 #torch.backends.cudnn.deterministic = True
 #torch.backends.cudnn.benchmark = False
 
 loss_factor = 2
 
-def loss_fn(net, batch_in):
+def loss_fn(net, batch_in, currency_select):
     d,y = batch_in
+    
     d = (d.reshape(-1, d.shape[2], d.shape[3], d.shape[4]).float())
     y = (y.reshape(-1, y.shape[2], y.shape[3]).float())
     currency_count = y.shape[1]
+    # print(y.shape)
+    y = (y.reshape([-1,currency_count]))[:, currency_select].cuda()
+    # print(y.shape)
     saved = y
+    # print(saved.shape)
     y = ((y) ** -1) ** loss_factor
     d = d.cuda()
-    x = net(d)
+    x = net(d).squeeze(1)
+    # print(x)
+    # print(saved)
     #x = (x ** -1) ** loss_factor
-    y = (y.reshape([-1,currency_count])).cuda()
-    readable_loss = torch.mul(x,saved.reshape([-1,currency_count]).cuda()).sum(dim=1)
-    readable_loss = readable_loss.sum()/y.shape[0]
+    
+    # print(y.shape)
+    # print(x.shape)
+    # print(x*saved)
+    readable_loss = (x * saved).sum()
+    print(readable_loss.item())
+    readable_loss /= y.shape[0]
+    # print(readable_loss)
     z = x * y
-    z = z.sum(dim=1)
     loss = z.sum()
-    # loss = loss/z.shape[0]
+    loss = loss/z.shape[0]
     del y
     del d
     return loss,readable_loss
 
-def test(model, test_loader, epoch, test_size):
+def test(model, test_loader, epoch, test_size, currency_select):
         model.eval()
         loss = 0
         raw_loss = 0.0
         j = 0
         for i,b in enumerate(test_loader, 0):
             j = i
-            rl, readable_loss = loss_fn(model, b)
+            rl, readable_loss = loss_fn(model, b, currency_select)
             raw_loss = rl.item() + raw_loss
             loss += readable_loss.item() * 10000
         print('Epoch {} test gain: {}'.format(epoch+1, loss/(j+1)))
@@ -101,26 +113,28 @@ def main():
     torch.set_default_tensor_type('torch.cuda.FloatTensor')
     #data = CurrencyDataset('./Processed')
     data = CurrencyDataset('./Processed/')
-    train_indices, test_indices = data.train_test_split(subset=0.01)
+    train_indices, test_indices = data.train_test_split(subset=0.0005)
     print('Train size: {}'.format(len(train_indices)))
     print('Test size: {}'.format(len(test_indices)))
-    currency_count = 5
+    currency_count = 1
     #net = ResNet([3,8,36,3], currency_count)
     
-    net = DenseNet(currency_count, reduce=True, layer_config=(4,8,8,6), growth_rate=32, init_layer=96, drop_rate=drop_in)
+    net = DenseNet(currency_count, reduce=True, layer_config=(2,4,4,6), growth_rate=32, init_layer=96, drop_rate=drop_in)
     net = nn.DataParallel(net)
     net.cuda()
     net.train()
-    train_batch = 16
+    train_batch = 20
     test_batch = 4
     dataloader = DataLoader(data,batch_size=train_batch,pin_memory=True, sampler=SubsetRandomSampler(train_indices), num_workers=4)
     test_loader = DataLoader(data,batch_size=test_batch,pin_memory=True, sampler=SubsetRandomSampler(test_indices), num_workers=4)
     #dataloader = DataLoader(data,batch_size=50,pin_memory=True,shuffle=True)
 
     #Optimizer
-    # optimizer = optim.Adam(net.parameters())
-    optimizer = optim.LBFGS(net.parameters(), history_size=200)
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer)
+    optimizer = optim.Adam(net.parameters(), lr=0.0001)
+    #optimizer = optim.LBFGS(net.parameters(), history_size=200)
+    #scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer)
+
+    currency_select = 2
 
     begin = time.time()
     for epoch in range(100):
@@ -133,7 +147,7 @@ def main():
             j = i
             def closure():
                 optimizer.zero_grad()
-                loss, readable_loss = loss_fn(net, batch)
+                loss, readable_loss = loss_fn(net, batch, currency_select)
                 # print(readable_loss * 10000)
                 # global epoch_loss
                 # epoch_loss += readable_loss.item() * 10000
@@ -144,7 +158,7 @@ def main():
             
         print('\nEpoch {} training gain: {}'.format(epoch+1, epoch_loss/(j+1)))
         with torch.no_grad():
-            running_loss = test(net, test_loader, epoch, len(test_indices))
+            running_loss = test(net, test_loader, epoch, len(test_indices), currency_select)
         # running_loss = test(net, test_loader, epoch, len(test_indices))
         #scheduler.step(running_loss)
         #print(optimizer.state_dict()['param_groups'][0]['lr'])

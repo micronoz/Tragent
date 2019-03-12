@@ -126,7 +126,7 @@ class _DenseLayer(nn.Sequential):
         self.add_module('norm2', nn.BatchNorm2d(expansion * growth_rate)),
         self.add_module('relu2', nn.ReLU(inplace=True)),
         self.add_module('conv2', nn.Conv2d(expansion * growth_rate, growth_rate,
-                        kernel_size=(3,1), stride=1, padding=(1,0), bias=False))
+                        kernel_size=(3,3), stride=1, padding=(1,1), bias=False))
 
     def forward(self, x):
         out = super(_DenseLayer, self).forward(x)
@@ -197,5 +197,5 @@ class DenseNet(nn.Module):
         result = torch.transpose(result,1,3)
         result = self.final_pool(result)
         result = result.view(-1,self.num_classes)
-        result = F.softmax(result, dim=1)
+        result = torch.sigmoid(result)
         return result
