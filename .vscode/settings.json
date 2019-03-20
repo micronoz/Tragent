@@ -1,3 +1,4 @@
 {
-    "python.pythonPath": "/home/nabi/.conda/envs/pyt/bin/python"
+    "python.pythonPath": "/home/nabi/.conda/envs/pyt/bin/python",
+    "python.linting.pylintEnabled": true
 }

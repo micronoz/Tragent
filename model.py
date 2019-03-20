@@ -182,9 +182,9 @@ class DenseNet(nn.Module):
         self.classifier = nn.Linear(channels, num_classes)
         
         #Decision layer
-        self.features.add_module('final_pool', nn.AdaptiveAvgPool2d((1,num_classes)))
-        self.features.add_module('final_relu', nn.ReLU(inplace=True))
-        self.final_pool = nn.AdaptiveAvgPool2d((1,1))
+        # self.features.add_module('final_pool', nn.AdaptiveAvgPool2d((1,num_classes)))
+        # self.features.add_module('final_relu', nn.ReLU(inplace=True))
+        # self.final_pool = nn.AdaptiveAvgPool2d((1,1))
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -203,4 +203,5 @@ class DenseNet(nn.Module):
         result = self.classifier(result)
         result = torch.sigmoid(result)
         # print(result.shape)
+        # print(result)
         return result

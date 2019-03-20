@@ -16,7 +16,7 @@ from functools import reduce
 # In[2]:
 
 
-currencies = ['USD', 'TRY', 'GBP', 'JPY', 'EUR', 'NZD']
+currencies = ['USD', 'TRY', 'GBP', 'JPY', 'EUR', 'NZD', 'AUD', 'NSX', 'SPX', 'CAD', 'ZAR']
 master_dir = os.path.abspath(input('Master path: '))
 data_path = os.path.join(master_dir, 'Data')
 dirs = os.listdir(data_path)
@@ -164,8 +164,12 @@ for key in frame_collections.keys():
 
 # In[10]:
 
-
+min = -1
 for key in prepared_frames.items():
+    if (min == -1):
+        min = key[1].shape[0]
+    elif (key[1].shape[0] < min):
+        min = key[1].shape[0]
     print(key[0],key[1].shape)
 
 
@@ -197,5 +201,6 @@ for datum in prepared_frames.items():
             df.loc[0,['Open','High','Low','Close']] = val * 2
     df = df.interpolate()
     file_name = os.path.join(process_dir, key + '.csv')
+    df = df.iloc[df.shape[0] - min:]
     df.to_csv(file_name, sep='\t')
 

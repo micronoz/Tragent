@@ -176,7 +176,7 @@ class Market:
 
 if __name__ == '__main__':
     processed_path = os.path.abspath(input('Path to processed data: '))
-    market = Market(['TRY', 'USD', 'EUR', 'NZD', 'GBP', 'JPY'], processed_path, 24)
+    market = Market(['USD', 'TRY', 'GBP', 'JPY', 'EUR', 'NZD', 'AUD', 'NSX', 'SPX', 'CAD', 'ZAR'], processed_path, 24)
     market.import_file()
     market.prepare_data(50,50,reset=True)
 

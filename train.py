@@ -27,11 +27,13 @@ def loss_fn(net, batch_in, currency_select):
     y = (y.reshape(-1, y.shape[2], y.shape[3]).float())
     currency_count = y.shape[1]
     # print(y.shape)
+    
     y = (y.reshape([-1,currency_count]))[:, currency_select].cuda()
     # y = torch.cat([y[:, 0].unsqueeze(1), y[:, currency_select].unsqueeze(1)], 1)
     # print(y)
     # print(y.shape)
     saved = y
+    # print(saved)
     # print(saved.shape)
     # y = ((y) ** -1) ** loss_factor
     d = d.cuda()
@@ -59,11 +61,28 @@ def loss_fn(net, batch_in, currency_select):
     # loss = loss/y.shape[0]
 
     # p = y.clone()
-    # p[p >= 1] = 1
-    # p[p < 1] = 0
+    y[y >= 1.0] = 1
+    y[y < 1.0] = 0
+
+    y[x >= 0.5] = 1
+    y[x < 0.5] = 0
+
+    # print(x)
+    # print(y)
+
+    # x[x >= 0.5] = 1
+    # x[x < 0.5] = 0
+    # print(y)
+    # print(x)
+    loss = ((y - x) ** 2).sum() / x.shape[0]
+
+
+    # print(loss)
+    # loss = F.binary_cross_entropy_with_logits(x,y)
+
     # best = -((p * y) - p).sum()
     # print("Best {}".format(best.item()))
-    loss = -((x * y) - x).sum()
+    # loss = -((x * y) - x).sum()
     # print("Done {}".format(loss.item()))
 
     # readable_loss = 1
@@ -122,12 +141,12 @@ def main():
 
     #torch.backends.cudnn.benchmark = False
     #torch.backends.cudnn.deterministic = True
-    random.seed(77)
-    np.random.seed(69)
-    torch.manual_seed(3)
+    random.seed(63)
+    np.random.seed(76)
+    torch.manual_seed(7)
     
     global loss_factor
-    loss_factor = int(input('Loss factor:'))
+    # loss_factor = int(input('Loss factor:'))
     drop_in = float(input('Drop rate:'))
 
     torch.set_default_tensor_type('torch.cuda.FloatTensor')
@@ -139,12 +158,12 @@ def main():
     currency_count = 1
     #net = ResNet([3,8,36,3], currency_count)
     
-    net = DenseNet(currency_count, reduce=True, layer_config=(4, 8, 16, 12), growth_rate=32, init_layer=64, drop_rate=drop_in)
+    net = DenseNet(currency_count, reduce=True, layer_config=(6, 12, 48, 32), growth_rate=32, init_layer=64, drop_rate=drop_in)
     # net = DenseNet(currency_count, reduce=True, layer_config=(2,4,4,2), growth_rate=48, init_layer=96, drop_rate=drop_in)
     net = nn.DataParallel(net)
     net.cuda()
     net.train()
-    train_batch = 300
+    train_batch = 125
     test_batch = 20
     dataloader = DataLoader(data,batch_size=train_batch,pin_memory=True, sampler=SubsetRandomSampler(train_indices), num_workers=4)
     test_loader = DataLoader(data,batch_size=test_batch,pin_memory=True, sampler=SubsetRandomSampler(test_indices), num_workers=4)
@@ -152,17 +171,19 @@ def main():
 
     #Optimizer
     optimizer = optim.Adam(net.parameters(), lr=0.001)
+    # optimizer = optim.SGD(net.parameters(recurse=True), lr=1, momentum=0.9, nesterov=True)
     # optimizer = optim.LBFGS(net.parameters(), history_size=200)
-    #scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer)
+    # scheduler = optim.lr_scheduler.MultiStepLR(optimizer, (30, 60, 90))
 
-    currency_select = 2
+    currency_select = 10
 
     begin = time.time()
-    for epoch in range(100):
+    for epoch in range(5):
         epoch_time = time.time()
         epoch_loss = 0.0
         net.train()
         j = 0
+        # print(optimizer.param_groups[0]['lr'])
         pbar = Bar('Epoch ' + str(epoch+1), max=len(train_indices)//train_batch, suffix='%(percent)d%% %(eta)d seconds left.')
         for i,batch in enumerate(dataloader, 0):
             j = i
@@ -180,7 +201,10 @@ def main():
             loss.backward()
             optimizer.step()
             epoch_loss += loss.item()
+            
             pbar.next()
+        
+        # scheduler.step()
             
         print('\nEpoch {} training gain: {}'.format(epoch+1, epoch_loss/(j+1)))
         with torch.no_grad():
