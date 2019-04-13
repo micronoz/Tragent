@@ -34,7 +34,7 @@ class Bottleneck(nn.Module):
         self.bn2 = nn.BatchNorm2d(out_channels)
         self.conv3 = conv1(out_channels, out_channels * self.expansion)
         self.bn3 = nn.BatchNorm2d(out_channels * self.expansion)
-        self.relu = nn.ReLU(inplace=True)
+        self.relu = nn.LeakyReLU(inplace=True)
         self.downsample = downsample
         self.stride = stride
 
@@ -65,7 +65,7 @@ class ResNet(nn.Module):
         self.init_conv = nn.Conv2d(3, self.init_planes, kernel_size=(7,1), 
                                 stride=(1,1), padding=(3,0), bias=False)
         self.init_bn = nn.BatchNorm2d(self.init_planes)
-        self.relu = nn.ReLU(inplace=True)
+        self.relu = nn.LeakyReLU(inplace=True)
         self.avgpool = nn.AvgPool2d(kernel_size=(2,1), stride=(1,1))
         
         self.layer1 = self._make_layer(block, 64, layers[0])
@@ -120,11 +120,11 @@ class _DenseLayer(nn.Sequential):
         super(_DenseLayer, self).__init__()
         self.drop_rate = drop_rate
         self.add_module('norm1', nn.BatchNorm2d(input_features)),
-        self.add_module('relu1', nn.ReLU(inplace=True)),
+        self.add_module('relu1', nn.LeakyReLU(inplace=True)),
         self.add_module('conv1', nn.Conv2d(input_features, expansion *
                         growth_rate, kernel_size=1, stride=1, bias=False)),
         self.add_module('norm2', nn.BatchNorm2d(expansion * growth_rate)),
-        self.add_module('relu2', nn.ReLU(inplace=True)),
+        self.add_module('relu2', nn.LeakyReLU(inplace=True)),
         self.add_module('conv2', nn.Conv2d(expansion * growth_rate, growth_rate,
                         kernel_size=3, stride=1, padding=1, bias=False))
 
@@ -147,7 +147,7 @@ class _Transition(nn.Sequential):
         super(_Transition, self).__init__()
 
         self.add_module('norm', nn.BatchNorm2d(input_features))
-        self.add_module('relu', nn.ReLU(inplace=True))
+        self.add_module('relu', nn.LeakyReLU(inplace=True))
         self.add_module('conv', nn.Conv2d(input_features, output_features,
                                           kernel_size=1, stride=1, bias=False))
         self.add_module('pool', nn.AvgPool2d(kernel_size=2, stride=2))
@@ -162,7 +162,7 @@ class DenseNet(nn.Module):
         self.features = nn.Sequential(OrderedDict([
             ('init_conv', nn.Conv2d(3, init_layer, kernel_size=7, stride=2, padding=3, bias=False)),
             ('init_bn', nn.BatchNorm2d(init_layer)),
-            ('init_relu', nn.ReLU(inplace=True)),
+            ('init_relu', nn.LeakyReLU(inplace=True)),
             ('init_pool', nn.MaxPool2d(kernel_size=3, stride=2, padding=1))
         ]))
 
@@ -179,6 +179,8 @@ class DenseNet(nn.Module):
                 self.features.add_module('transition%d' % (i+1), trans)
                 channels = channels // 2
         
+        self.features.add_module('normfin', nn.BatchNorm2d(channels))
+
         self.classifier = nn.Linear(channels, num_classes)
         
         #Decision layer
@@ -188,20 +190,23 @@ class DenseNet(nn.Module):
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
-                nn.init.xavier_normal_(m.weight)
+                nn.init.kaiming_normal_(m.weight)
             elif isinstance(m, nn.BatchNorm2d):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
             elif isinstance(m, nn.Linear):
                 nn.init.constant_(m.bias, 0)
-        
+        nn.init.kaiming_normal_(self.classifier.weight)
+        nn.init.constant_(self.classifier.bias, 0)
+
     def forward(self, x):
         feat = self.features(x)
         # print(feat.shape)
         result = F.relu(feat)
         result = F.adaptive_avg_pool2d(result, (1, 1)).view(feat.size(0), -1)
         result = self.classifier(result)
-        result = torch.sigmoid(result)
+        # print(result)
+        result = torch.softmax(result, 1)
         # print(result.shape)
         # print(result)
         return result
