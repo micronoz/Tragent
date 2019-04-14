@@ -1,4 +1,4 @@
-# Trader
+# Tragent
 This is an experimental code base that I started mainly to become familiar with Python and Pytorch. The methods I used in this program were intented to model the foreign currency exchange market price movements and make predictions about the price movements for the next minute. However, the minute based price movements in the market have proved to be almost perfectly random and thus are very hard to predict. The model can make binary up/down predictions at a 53% accuracy, which is not realiable enough to use on the real market. The code in this repository is uncommented, unorganized and was meant to be a tutorial project for me to learn Python. This does not reflect my current coding practices, style, or skills.
 
 I'm currently building another code base from the ground up with a goal of improving the current High Frequency Trading (HFT) systems to make them more adaptive to changes in the market.
