@@ -21,25 +21,37 @@ import matplotlib.pyplot as plt
 
 loss_factor = 2
 
-def loss_fn(net, batch_in, currency_select, test_run=False):
+def loss_fn(net, batch_in, test_run=False):
     d,y = batch_in
     
     d = (d.reshape(-1, d.shape[2], d.shape[3], d.shape[4]).float())
     y = (y.reshape(-1, y.shape[2], y.shape[3]).float())
     currency_count = y.shape[1]
-    
-    y = (y.reshape([-1,currency_count]))[:, currency_select]
 
-    saved = y
+    y = (y.reshape([-1,currency_count]))
+    saved = y.cuda()
+    # y = y ** -1
+
+
     d = d.cuda()
  
-    y[y >= 1] = 1
-    y[y < 1] = 0
+    # print(torch.argmax(y, dim=1))
+   
+    y[y >= 1] = 1.0
+    y[y < 1] = 0.0
 
-    y = y.long()
+    # y = y.long()
+
     y = y.cuda()
 
     x = net(d)
+
+    # loss = -((x * y).sum()).sum()
+    loss = F.binary_cross_entropy_with_logits(x, y)
+    # print(loss)
+
+    if(test_run):
+        loss = (torch.softmax(x, 1) * saved).sum().sum() / x.shape[0]
 
     # loss = torch.log(torch.cosh(x - y)).sum()
 
@@ -50,7 +62,7 @@ def loss_fn(net, batch_in, currency_select, test_run=False):
 
     # loss = (abs(x - y)).sum() / x.shape[0]
     
-    loss = F.cross_entropy(x, y)
+    # loss = F.cross_entropy(x, y)
 
     # if (not test_run):
     #     z[z == -1] = 0.5
@@ -64,14 +76,14 @@ def loss_fn(net, batch_in, currency_select, test_run=False):
     del d
     return loss
 
-def test(model, test_loader, epoch, test_size, currency_select):
+def test(model, test_loader, epoch, test_size):
         model.eval()
         loss = 0
         raw_loss = 0.0
         j = 0
         for i,b in enumerate(test_loader, 0):
             j = i
-            rl = loss_fn(model, b, currency_select, True)
+            rl = loss_fn(model, b, True)
             raw_loss += rl.item()
             # loss += readable_loss.item() * 10000
         print('Epoch {} test loss: {}'.format(epoch+1, raw_loss / (j+1)))
@@ -125,14 +137,14 @@ def main():
     torch.set_default_tensor_type('torch.cuda.FloatTensor')
     #data = CurrencyDataset('./Processed')
     data = CurrencyDataset('./Processed/')
-    train_indices, test_indices = data.train_test_split(subset=0.5)
+    train_indices, test_indices = data.train_test_split(subset=0.05)
     print('Train size: {}'.format(len(train_indices)))
     print('Test size: {}'.format(len(test_indices)))
-    currency_count = 2
+    currency_count = 11
     #net = ResNet([3,8,36,3], currency_count)
     
     # net = DenseNet(currency_count, reduce=True, layer_config=(6, 12, 48, 32), growth_rate=32, init_layer=64, drop_rate=drop_in)
-    net = DenseNet(currency_count, reduce=True, layer_config=(1,1,1,1), growth_rate=32, init_layer=64, drop_rate=drop_in)
+    net = DenseNet(currency_count, reduce=True, layer_config=(1,1,1,1), growth_rate=8, init_layer=8, drop_rate=drop_in)
     net = nn.DataParallel(net)
     net.cuda()
     net.train()
@@ -147,8 +159,7 @@ def main():
     # optimizer = optim.SGD(net.parameters(recurse=True), lr=0.1, momentum=0.9, nesterov=True)
     # optimizer = optim.LBFGS(net.parameters(), history_size=200)
     # scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.5)
-
-    currency_select = 10
+    # scheduler = optim.lr_scheduler.MultiStepLR(optimizer, (15, 30, 50))
 
     begin = time.time()
     for epoch in range(200):
@@ -170,18 +181,18 @@ def main():
             
             #     return loss
             optimizer.zero_grad()
-            loss = loss_fn(net, batch, currency_select)
+            loss = loss_fn(net, batch)
             loss.backward()
             optimizer.step()
             epoch_loss += loss.item()
             
             pbar.next()
         
-        # scheduler.step(epoch_loss)
+        # scheduler.step()
             
         print('\nEpoch {} training loss: {}'.format(epoch+1, epoch_loss/(j+1)))
         with torch.no_grad():
-            running_loss = test(net, test_loader, epoch, len(test_indices), currency_select)
+            running_loss = test(net, test_loader, epoch, len(test_indices))
         # running_loss = test(net, test_loader, epoch, len(test_indices))
         # scheduler.step(running_loss)
         #print(optimizer.state_dict()['param_groups'][0]['lr'])

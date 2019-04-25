@@ -206,7 +206,7 @@ class DenseNet(nn.Module):
         result = F.adaptive_avg_pool2d(result, (1, 1)).view(feat.size(0), -1)
         result = self.classifier(result)
         # print(result)
-        result = torch.softmax(result, 1)
+        # result = torch.softmax(result, 1)
         # print(result.shape)
         # print(result)
         return result
